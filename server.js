@@ -2,11 +2,13 @@ import express from "express";
 import cors from "cors";
 
 const app = express();
+
 app.use(cors({
   origin: "*",
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type"]
 }));
+
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -36,9 +38,18 @@ app.post("/chat", async (req, res) => {
 
     const data = await response.json();
 
-    res.json({
-      reply: data.output_text || "პასუხი ვერ მოიძებნა"
-    });
+    // სწორი პასუხის ამოღება
+    let reply = "პასუხი ვერ მოიძებნა";
+
+    if (data.output && data.output.length > 0) {
+      const content = data.output[0].content;
+
+      if (content && content.length > 0 && content[0].text) {
+        reply = content[0].text;
+      }
+    }
+
+    res.json({ reply });
 
   } catch (error) {
     console.error(error);
