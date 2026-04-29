@@ -4,10 +4,10 @@ import fs from "fs";
 
 const app = express();
 
-// 🔹 ბაზის ჩატვირთვა
+// 🔹 ბაზა
 const products = JSON.parse(fs.readFileSync("./products.json", "utf-8"));
 
-// 🔹 მარტივი memory (ბოლო ნაპოვნი პროდუქტი)
+// 🔹 memory
 let lastProduct = null;
 
 app.use(cors({
@@ -32,21 +32,55 @@ app.post("/chat", async (req, res) => {
       )
     );
 
-    // 🔁 თუ ვერ იპოვა — გამოიყენე ბოლო პროდუქტი
+    // 🔁 memory
     if (!found) {
       if (lastProduct) {
         found = lastProduct;
-      } else {
-        return res.json({
-          reply: "ზუსტი ინფორმაცია არ მაქვს ამ თემაზე"
-        });
       }
     } else {
-      // ✅ თუ იპოვა — დაიმახსოვრე
       lastProduct = found;
     }
 
-    // 🤖 AI პასუხი
+    let prompt = "";
+
+    if (found) {
+      prompt = `
+შენ ხარ გამოცდილი ჰიდრავლიკის ხელოსანი.
+
+ილაპარაკე როგორც კოლეგასთან:
+- პირდაპირ
+- მოკლედ
+- ბუნებრივად
+- ზედმეტი ახსნა არ გინდა
+
+ძალიან მნიშვნელოვანია:
+- არ მოიგონო არაფერი
+- თქვი მხოლოდ რაც ზუსტად იცი
+- აუცილებლად თქვი პროდუქტის სახელი
+
+ინფორმაცია:
+პროდუქტი: ${found.name}
+მარტივად: ${found.simple}
+ტექნიკურად: ${found.technical}
+გამოყენება: ${found.use}
+
+უპასუხე ისე, როგორც თანამშრომელს ეტყოდი.
+
+კითხვა: ${message}
+`;
+    } else {
+      // 🔹 fallback (თუ ბაზაში ვერ იპოვა)
+      prompt = `
+შენ ხარ ჰიდრავლიკის ხელოსანი.
+
+უპასუხე მოკლედ და ადამიანურად.
+
+თუ ზუსტად არ იცი → თქვი "არ ვიცი ზუსტად".
+
+კითხვა: ${message}
+`;
+    }
+
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -55,34 +89,11 @@ app.post("/chat", async (req, res) => {
       },
       body: JSON.stringify({
         model: "gpt-4.1-mini",
-input: `
-შენ ხარ ჰიდრავლიკის სპეციალისტი.
-
-ძალიან მნიშვნელოვანია:
-- არასოდეს მოიგონო ინფორმაცია
-- უპასუხე მხოლოდ მოცემულზე დაყრდნობით
-- იყავი ბუნებრივი და გასაგები
-
-აუცილებლად:
-- დაასახელე პროდუქტის სახელი (კოდი)
-- არ უპასუხო ზოგადად
-
-ინფორმაცია:
-პროდუქტი: ${found.name}
-მარტივად: ${found.simple}
-ტექნიკურად: ${found.technical}
-გამოყენება: ${found.use}
-
-უპასუხე მოკლედ და კონკრეტულად.
-
-კითხვა: ${message}
-`
+        input: prompt
       })
     });
 
     const data = await response.json();
-
-    console.log("OPENAI RESPONSE:", JSON.stringify(data, null, 2));
 
     if (!response.ok) {
       console.error("OPENAI ERROR:", data);
@@ -96,21 +107,21 @@ input: `
     try {
       if (data.output && data.output.length > 0) {
         for (let item of data.output[0].content) {
-          if (item.type === "output_text" && item.text) {
+          if (item.type === "output_text") {
             reply = item.text;
             break;
           }
         }
       }
     } catch (e) {
-      console.error("PARSE ERROR:", e);
+      console.error(e);
     }
 
-    return res.json({ reply });
+    res.json({ reply });
 
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ reply: "დაფიქსირდა შეცდომა" });
+    res.status(500).json({ reply: "დაფიქსირდა შეცდომა" });
   }
 });
 
