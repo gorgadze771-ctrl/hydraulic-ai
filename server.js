@@ -36,7 +36,7 @@ app.post("/chat", async (req, res) => {
       })
     });
 
-    const data = await response.json();
+    console.log("OPENAI RESPONSE:", JSON.stringify(data, null, 2));
 
     // სწორი პასუხის ამოღება
     let reply = "პასუხი ვერ მოიძებნა";
