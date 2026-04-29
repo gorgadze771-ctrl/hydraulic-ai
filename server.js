@@ -7,6 +7,9 @@ const app = express();
 // 🔹 ბაზის ჩატვირთვა
 const products = JSON.parse(fs.readFileSync("./products.json", "utf-8"));
 
+// 🔹 მარტივი memory (ბოლო ნაპოვნი პროდუქტი)
+let lastProduct = null;
+
 app.use(cors({
   origin: "*",
   methods: ["GET", "POST"],
@@ -23,21 +26,27 @@ app.post("/chat", async (req, res) => {
   try {
     const { message } = req.body;
 
-    // 🔍 პროდუქტის ძებნა ბაზაში
-    const found = products.find(p =>
+    let found = products.find(p =>
       p.keywords.some(k =>
         message.toLowerCase().includes(k.toLowerCase())
       )
     );
 
-    // ❌ თუ ვერ იპოვა — არ ვიგონებთ
+    // 🔁 თუ ვერ იპოვა — გამოიყენე ბოლო პროდუქტი
     if (!found) {
-      return res.json({
-        reply: "ზუსტი ინფორმაცია არ მაქვს ამ თემაზე"
-      });
+      if (lastProduct) {
+        found = lastProduct;
+      } else {
+        return res.json({
+          reply: "ზუსტი ინფორმაცია არ მაქვს ამ თემაზე"
+        });
+      }
+    } else {
+      // ✅ თუ იპოვა — დაიმახსოვრე
+      lastProduct = found;
     }
 
-    // 🤖 AI-ს ვაძლევთ მხოლოდ ბაზის ინფორმაციას
+    // 🤖 AI პასუხი
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -58,6 +67,8 @@ app.post("/chat", async (req, res) => {
 მარტივად: ${found.simple}
 ტექნიკურად: ${found.technical}
 გამოყენება: ${found.use}
+
+თუ მომხმარებელი ითხოვს "უფრო ვრცლად" — გააფართოვე ეს ინფორმაცია.
 
 უპასუხე მოკლედ და ადამიანურად.
 
