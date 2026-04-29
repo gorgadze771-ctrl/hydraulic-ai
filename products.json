@@ -1,0 +1,30 @@
+[
+  {
+    "name": "Staloc 243",
+    "keywords": ["243", "სტალოკი 243", "threadlocker"],
+    "simple": "ჭანჭიკის დამჭერი, არ აძლევს მოშვებას",
+    "technical": "Medium strength threadlocker, vibration resistant",
+    "use": "როცა ჭანჭიკი არ უნდა მოეშვას ვიბრაციის დროს"
+  },
+  {
+    "name": "Staloc 270",
+    "keywords": ["270", "სტალოკი 270"],
+    "simple": "ძალიან ძლიერი ჭანჭიკის დამჭერი",
+    "technical": "High strength threadlocker, permanent locking",
+    "use": "როცა ჭანჭიკი საერთოდ არ უნდა მოეშვას"
+  },
+  {
+    "name": "Hydraulic Hose",
+    "keywords": ["შლანგი", "ჰიდრავლიკური მილი", "hose"],
+    "simple": "მაღალი წნევის შლანგი ზეთის გადასატანად",
+    "technical": "Reinforced hose for high pressure systems",
+    "use": "ჰიდრავლიკურ სისტემებში ზეთის გადატანა"
+  },
+  {
+    "name": "Hydroscand",
+    "keywords": ["ჰიდროსკანდი", "hydroscand"],
+    "simple": "ჰიდრავლიკის ნაწილების და შლანგების კომპანია",
+    "technical": "Supplier of hydraulic hoses, fittings and components",
+    "use": "ჰიდრავლიკური სისტემების აწყობა და მომსახურება"
+  }
+]
