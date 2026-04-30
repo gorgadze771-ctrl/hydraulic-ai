@@ -31,10 +31,29 @@ function normalize(text) {
 
 // 🔍 სიმტკიცის ამოცნობა
 function detectStrength(text) {
-  const t = normalize(text);
+  const t = text.toLowerCase();
 
-  if (t.includes("magal") || t.includes("მაღ")) return "მაღალი";
-  if (t.includes("sashual") || t.includes("საშუალ")) return "საშუალო";
+  // 🔥 მაღალი
+  if (
+    t.includes("მაღალი") ||
+    t.includes("მარალი") ||
+    t.includes("მაგალი") ||
+    t.includes("magali") ||
+    t.includes("maghali") ||
+    t.includes("მაღ")
+  ) {
+    return "მაღალი";
+  }
+
+  // 🔥 საშუალო
+  if (
+    t.includes("საშუალო") ||
+    t.includes("საშუალ") ||
+    t.includes("sashualo") ||
+    t.includes("sashual")
+  ) {
+    return "საშუალო";
+  }
 
   return null;
 }
