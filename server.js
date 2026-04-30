@@ -9,6 +9,7 @@ const products = JSON.parse(fs.readFileSync("./staloc.json", "utf-8"));
 
 // 🔹 memory
 let lastProduct = null;
+let pendingFilter = null; // 🔥 რას ვკითხეთ ბოლოს
 
 app.use(cors());
 app.use(express.json());
@@ -17,7 +18,7 @@ app.get("/", (req, res) => {
   res.send("Hydraulic AI running...");
 });
 
-// 🔍 FULL SEARCH ყველა ველში
+// 🔍 FULL SEARCH
 function matchesProduct(p, message) {
   const text = [
     p.name,
@@ -42,10 +43,33 @@ app.post("/chat", async (req, res) => {
     const { message } = req.body;
     const lowerMsg = message.toLowerCase();
 
-    let matches = products.filter(p => matchesProduct(p, lowerMsg));
+    let matches = [];
 
-    // 🔥 თუ რამდენიმე ვარიანტია → დაუსვი კითხვა
+    // 🔥 თუ ელოდება სიმტკიცის პასუხს
+    if (pendingFilter === "strength") {
+      let strength = null;
+
+      if (lowerMsg.includes("მაღალი")) strength = "მაღალი";
+      if (lowerMsg.includes("საშუალო")) strength = "საშუალო";
+
+      if (strength) {
+        matches = products.filter(p =>
+          p.simple?.toLowerCase().includes(strength)
+        );
+
+        pendingFilter = null; // ვხურავთ კითხვას
+      }
+    }
+
+    // 🔍 ჩვეულებრივი ძებნა თუ არაფერი მოიძებნა
+    if (matches.length === 0) {
+      matches = products.filter(p => matchesProduct(p, lowerMsg));
+    }
+
+    // 🔥 თუ რამდენიმე ვარიანტია → ვკითხოთ
     if (matches.length > 1) {
+      pendingFilter = "strength";
+
       return res.json({
         reply: "რა სიმტკიცის გინდათ? მაღალი თუ საშუალო."
       });
