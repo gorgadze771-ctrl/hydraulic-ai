@@ -4,8 +4,12 @@ import fs from "fs";
 
 const app = express();
 
-// 🔹 ბაზა
-const products = JSON.parse(fs.readFileSync("./products.json", "utf-8"));
+// 🔹 სხვადასხვა ბაზების ჩატვირთვა
+const staloc = JSON.parse(fs.readFileSync("./staloc.json", "utf-8"));
+const brands = JSON.parse(fs.readFileSync("./brand.json", "utf-8"));
+
+// 🔹 გაერთიანებული ბაზა
+const products = [...staloc, ...brands];
 
 // 🔹 memory
 let lastProduct = null;
@@ -26,10 +30,13 @@ app.post("/chat", async (req, res) => {
   try {
     const { message } = req.body;
 
+    const lowerMsg = message.toLowerCase();
+
+    // 🔍 ძებნა (keywords + code + name)
     let found = products.find(p =>
-      p.keywords.some(k =>
-        message.toLowerCase().includes(k.toLowerCase())
-      )
+      (p.keywords && p.keywords.some(k => lowerMsg.includes(k.toLowerCase()))) ||
+      (p.code && lowerMsg.includes(p.code.toLowerCase())) ||
+      (p.name && lowerMsg.includes(p.name.toLowerCase()))
     );
 
     // 🔁 memory
@@ -51,10 +58,8 @@ app.post("/chat", async (req, res) => {
 - ბუნებრივად და მოკლედ
 - გამართულად ქართულად
 - პროფესიონალურად, მაგრამ მარტივად
-- წინადადებები იყოს სუფთა და გასაგები
 
 არ გამოიყენო სლენგი ან გაუმართავი ფორმულირება.
-არ ილაპარაკო ზედმეტად წიგნური სტილით.
 
 ძალიან მნიშვნელოვანია:
 - არ მოიგონო ინფორმაცია
@@ -62,31 +67,26 @@ app.post("/chat", async (req, res) => {
 
 ლოგიკა:
 - ჯერ გაიგე კითხვა — არის თუ არა ტექნიკური
-- თუ არ არის ტექნიკური → უბრალოდ უპასუხე, პროდუქტი არ ახსენო
-- თუ არის ტექნიკური → გამოიყენე ქვემოთ მოცემული ინფორმაცია
-- პროდუქტი ახსენე მხოლოდ მაშინ, როცა რეალურად საჭიროა
+- თუ არ არის ტექნიკური → უბრალოდ უპასუხე
+- თუ არის ტექნიკური → გამოიყენე ინფორმაცია
 
-თუ იყენებ პროდუქტს:
-- აუცილებლად დაასახელე პროდუქტის სახელი
+პროდუქტი: ${found.name}
+კოდი: ${found.code || ""}
+მარტივად: ${found.simple || ""}
+ტექნიკურად: ${found.technical || ""}
+გამოყენება: ${found.use || ""}
 
-ინფორმაცია:
-პროდუქტი: ${found?.name || ""}
-მარტივად: ${found?.simple || ""}
-ტექნიკურად: ${found?.technical || ""}
-გამოყენება: ${found?.use || ""}
-
-უპასუხე მოკლედ (1-2 წინადადება), ისე როგორც თანამშრომელს აუხსნიდი.
+უპასუხე მოკლედ (1-2 წინადადება).
 
 კითხვა: ${message}
 `;
     } else {
-      // 🔹 fallback (თუ ბაზაში ვერ იპოვა)
       prompt = `
-შენ ხარ ჰიდრავლიკის ხელოსანი.
+შენ ხარ ჰიდრავლიკის ტექნიკოსი.
 
 უპასუხე მოკლედ და ადამიანურად.
 
-თუ ზუსტად არ იცი → თქვი "არ ვიცი ზუსტად".
+თუ არ იცი → თქვი "არ ვიცი ზუსტად".
 
 კითხვა: ${message}
 `;
