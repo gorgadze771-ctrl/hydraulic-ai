@@ -10,6 +10,7 @@ const products = JSON.parse(fs.readFileSync("./staloc.json", "utf-8"));
 // 🔹 memory
 let lastProduct = null;
 let pendingFilter = null;
+let pendingMatches = []; // 🔥 ახალი
 
 app.use(cors());
 app.use(express.json());
@@ -87,20 +88,27 @@ app.post("/chat", async (req, res) => {
 
     // 🔥 თუ ელოდება სიმტკიცის პასუხს
     if (pendingFilter === "strength") {
-      let strength = detectStrength(lowerMsg);
+  const strength = detectStrength(lowerMsg);
 
-      if (!strength) {
-        return res.json({
-          reply: "ვერ მივხვდი — მაღალი გინდა თუ საშუალო?"
-        });
-      }
+  if (!strength) {
+    return res.json({
+      reply: "ვერ მივხვდი — მაღალი გინდა თუ საშუალო?"
+    });
+  }
 
-      matches = products.filter(p =>
-        p.simple?.toLowerCase().includes(strength)
-      );
+  // 🔥 აქ არის მთავარი ცვლილება
+  matches = pendingMatches.filter(p =>
+    p.simple?.toLowerCase().includes(strength)
+  );
 
-      pendingFilter = null;
-    }
+  pendingFilter = null;
+  pendingMatches = [];
+
+  // 🔥 თუ ერთი დარჩა → პირდაპირ გავუშვათ
+  if (matches.length === 1) {
+    lastProduct = matches[0];
+  }
+}
 
     // 🔍 ჩვეულებრივი ძებნა
     if (matches.length === 0) {
@@ -110,9 +118,10 @@ app.post("/chat", async (req, res) => {
     // 🔥 თუ რამდენიმე ვარიანტია → ვკითხოთ
    if (matches.length > 1 && !pendingFilter) {
   pendingFilter = "strength";
+  pendingMatches = matches; // 🔥 დაიმახსოვრე
 
   return res.json({
-    reply: "რა სიმტკიცის გინდათ? მაღალი თუ საშუალო."
+    reply: "რა სიმტკიცის გინდა? მაღალი თუ საშუალო."
   });
 }
 
