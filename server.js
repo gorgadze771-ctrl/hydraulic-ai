@@ -108,13 +108,13 @@ app.post("/chat", async (req, res) => {
     }
 
     // 🔥 თუ რამდენიმე ვარიანტია → ვკითხოთ
-    if (matches.length > 1) {
-      pendingFilter = "strength";
+   if (matches.length > 1 && !pendingFilter) {
+  pendingFilter = "strength";
 
-      return res.json({
-        reply: "რა სიმტკიცის გინდათ? მაღალი თუ საშუალო."
-      });
-    }
+  return res.json({
+    reply: "რა სიმტკიცის გინდათ? მაღალი თუ საშუალო."
+  });
+}
 
     let found = matches[0] || null;
 
