@@ -9,8 +9,6 @@ const products = JSON.parse(fs.readFileSync("./staloc.json", "utf-8"));
 
 // 🔹 memory
 let lastProduct = null;
-let pendingFilter = null;
-let pendingMatches = []; // 🔥 ახალი
 
 app.use(cors());
 app.use(express.json());
@@ -18,46 +16,6 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Hydraulic AI running...");
 });
-
-// 🔍 ტექსტის normalize (typo tolerant)
-function normalize(text) {
-  return text
-    .toLowerCase()
-    .replace(/ა/g, "a")
-    .replace(/ე/g, "e")
-    .replace(/ი/g, "i")
-    .replace(/ო/g, "o")
-    .replace(/უ/g, "u");
-}
-
-// 🔍 სიმტკიცის ამოცნობა
-function detectStrength(text) {
-  const t = text.toLowerCase();
-
-  // 🔥 მაღალი
-  if (
-    t.includes("მაღალი") ||
-    t.includes("მარალი") ||
-    t.includes("მაგალი") ||
-    t.includes("magali") ||
-    t.includes("maghali") ||
-    t.includes("მაღ")
-  ) {
-    return "მაღალი";
-  }
-
-  // 🔥 საშუალო
-  if (
-    t.includes("საშუალო") ||
-    t.includes("საშუალ") ||
-    t.includes("sashualo") ||
-    t.includes("sashual")
-  ) {
-    return "საშუალო";
-  }
-
-  return null;
-}
 
 // 🔍 FULL SEARCH
 function matchesProduct(p, message) {
@@ -79,59 +37,68 @@ function matchesProduct(p, message) {
   return words.some(word => text.includes(word));
 }
 
+// 🔥 scoring (რომ აირჩიოს საუკეთესო)
+function scoreProduct(p, message) {
+  let score = 0;
+
+  const text = (
+    p.name + " " +
+    p.simple + " " +
+    p.use + " " +
+    (p.keywords || []).join(" ")
+  ).toLowerCase();
+
+  const words = message.toLowerCase().split(" ");
+
+  words.forEach(word => {
+    if (text.includes(word)) score += 2;
+  });
+
+  // 🔥 ლოგიკური ბონუსები
+  if (message.includes("ვიბრაცია") && p.simple?.includes("ფიქსატორი")) score += 2;
+  if (message.includes("გაჟონვა") && p.use?.includes("დალუქვა")) score += 2;
+  if (message.includes("საკისარი") && p.use?.includes("საკის")) score += 2;
+  if (message.includes("ხრახნი") && p.simple?.includes("ფიქსატორი")) score += 2;
+
+  return score;
+}
+
 app.post("/chat", async (req, res) => {
   try {
     const { message } = req.body;
     const lowerMsg = message.toLowerCase();
 
-    let matches = [];
+    let matches = products.filter(p => matchesProduct(p, lowerMsg));
 
-    // 🔥 თუ ელოდება სიმტკიცის პასუხს
-    if (pendingFilter === "strength") {
-  const strength = detectStrength(lowerMsg);
+    let found = null;
 
-  if (!strength) {
-    return res.json({
-      reply: "ვერ მივხვდი — მაღალი გინდა თუ საშუალო?"
-    });
-  }
-
-  // 🔥 აქ არის მთავარი ცვლილება
-  matches = pendingMatches.filter(p =>
-    p.simple?.toLowerCase().includes(strength)
-  );
-
-  pendingFilter = null;
-  pendingMatches = [];
-
-  // 🔥 თუ ერთი დარჩა → პირდაპირ გავუშვათ
-  if (matches.length === 1) {
-    lastProduct = matches[0];
-  }
-}
-
-    // 🔍 ჩვეულებრივი ძებნა
-    if (matches.length === 0) {
-      matches = products.filter(p => matchesProduct(p, lowerMsg));
+    if (matches.length === 1) {
+      found = matches[0];
     }
 
-    // 🔥 თუ რამდენიმე ვარიანტია → ვკითხოთ
-   if (matches.length > 1 && !pendingFilter) {
-  pendingFilter = "strength";
-  pendingMatches = matches; // 🔥 დაიმახსოვრე
+    // 🔥 თუ ბევრია → აირჩიოს საუკეთესო
+    if (matches.length > 1) {
+      const scored = matches
+        .map(p => ({ ...p, score: scoreProduct(p, lowerMsg) }))
+        .sort((a, b) => b.score - a.score);
 
-  return res.json({
-    reply: "რა სიმტკიცის გინდა? მაღალი თუ საშუალო."
-  });
-}
+      const best = scored[0];
+      const second = scored[1];
 
-    let found = matches[0] || null;
+      let reply = `${best.name} (${best.code}) გამოგადგება — ${best.simple}.`;
 
-    // 🔁 memory fallback
+      if (second && second.score > 0) {
+        reply += ` თუ უფრო ძლიერი ან სხვა ვარიანტი გინდა, შეგიძლია ${second.name}-იც ნახო.`;
+      }
+
+      lastProduct = best;
+
+      return res.json({ reply });
+    }
+
+    // 🔁 fallback
     if (!found && lastProduct) {
       found = lastProduct;
-    } else if (found) {
-      lastProduct = found;
     }
 
     let prompt = "";
