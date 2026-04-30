@@ -9,7 +9,7 @@ const products = JSON.parse(fs.readFileSync("./staloc.json", "utf-8"));
 
 // 🔹 memory
 let lastProduct = null;
-let pendingFilter = null; // 🔥 რას ვკითხეთ ბოლოს
+let pendingFilter = null;
 
 app.use(cors());
 app.use(express.json());
@@ -17,6 +17,27 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Hydraulic AI running...");
 });
+
+// 🔍 ტექსტის normalize (typo tolerant)
+function normalize(text) {
+  return text
+    .toLowerCase()
+    .replace(/ა/g, "a")
+    .replace(/ე/g, "e")
+    .replace(/ი/g, "i")
+    .replace(/ო/g, "o")
+    .replace(/უ/g, "u");
+}
+
+// 🔍 სიმტკიცის ამოცნობა
+function detectStrength(text) {
+  const t = normalize(text);
+
+  if (t.includes("magal") || t.includes("მაღ")) return "მაღალი";
+  if (t.includes("sashual") || t.includes("საშუალ")) return "საშუალო";
+
+  return null;
+}
 
 // 🔍 FULL SEARCH
 function matchesProduct(p, message) {
@@ -47,21 +68,22 @@ app.post("/chat", async (req, res) => {
 
     // 🔥 თუ ელოდება სიმტკიცის პასუხს
     if (pendingFilter === "strength") {
-      let strength = null;
+      let strength = detectStrength(lowerMsg);
 
-      if (lowerMsg.includes("მაღალი")) strength = "მაღალი";
-      if (lowerMsg.includes("საშუალო")) strength = "საშუალო";
-
-      if (strength) {
-        matches = products.filter(p =>
-          p.simple?.toLowerCase().includes(strength)
-        );
-
-        pendingFilter = null; // ვხურავთ კითხვას
+      if (!strength) {
+        return res.json({
+          reply: "ვერ მივხვდი — მაღალი გინდა თუ საშუალო?"
+        });
       }
+
+      matches = products.filter(p =>
+        p.simple?.toLowerCase().includes(strength)
+      );
+
+      pendingFilter = null;
     }
 
-    // 🔍 ჩვეულებრივი ძებნა თუ არაფერი მოიძებნა
+    // 🔍 ჩვეულებრივი ძებნა
     if (matches.length === 0) {
       matches = products.filter(p => matchesProduct(p, lowerMsg));
     }
