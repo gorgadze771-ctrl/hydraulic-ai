@@ -9,6 +9,8 @@ const products = JSON.parse(fs.readFileSync("./staloc.json", "utf-8"));
 
 // 🔹 memory
 let lastProduct = null;
+let pendingFilter = null;
+let pendingMatches = [];
 
 app.use(cors());
 app.use(express.json());
@@ -37,30 +39,43 @@ function matchesProduct(p, message) {
   return words.some(word => text.includes(word));
 }
 
-// 🔥 scoring (რომ აირჩიოს საუკეთესო)
-function scoreProduct(p, message) {
-  let score = 0;
+// 🔍 განსხვავების პოვნა
+function findDifference(matches) {
+  const strengths = new Set();
 
-  const text = (
-    p.name + " " +
-    p.simple + " " +
-    p.use + " " +
-    (p.keywords || []).join(" ")
-  ).toLowerCase();
-
-  const words = message.toLowerCase().split(" ");
-
-  words.forEach(word => {
-    if (text.includes(word)) score += 2;
+  matches.forEach(p => {
+    if (p.simple?.includes("მაღალი")) strengths.add("მაღალი");
+    if (p.simple?.includes("საშუალო")) strengths.add("საშუალო");
   });
 
-  // 🔥 ლოგიკური ბონუსები
-  if (message.includes("ვიბრაცია") && p.simple?.includes("ფიქსატორი")) score += 2;
-  if (message.includes("გაჟონვა") && p.use?.includes("დალუქვა")) score += 2;
-  if (message.includes("საკისარი") && p.use?.includes("საკის")) score += 2;
-  if (message.includes("ხრახნი") && p.simple?.includes("ფიქსატორი")) score += 2;
+  if (strengths.size > 1) {
+    return {
+      type: "strength",
+      question: "მაღალი გინდა თუ საშუალო?"
+    };
+  }
 
-  return score;
+  return null;
+}
+
+// 🔍 სიმტკიცის ამოცნობა
+function detectStrength(text) {
+  const t = text.toLowerCase();
+
+  if (
+    t.includes("მაღალი") ||
+    t.includes("მარალი") ||
+    t.includes("მაგალი") ||
+    t.includes("magali") ||
+    t.includes("მაღ")
+  ) return "მაღალი";
+
+  if (
+    t.includes("საშუალო") ||
+    t.includes("საშუალ")
+  ) return "საშუალო";
+
+  return null;
 }
 
 app.post("/chat", async (req, res) => {
@@ -68,37 +83,47 @@ app.post("/chat", async (req, res) => {
     const { message } = req.body;
     const lowerMsg = message.toLowerCase();
 
-    let matches = products.filter(p => matchesProduct(p, lowerMsg));
+    let matches = [];
 
-    let found = null;
+    // 🔥 პასუხი წინა კითხვაზე
+    if (pendingFilter === "strength") {
+      const strength = detectStrength(lowerMsg);
 
-    if (matches.length === 1) {
-      found = matches[0];
-    }
-
-    // 🔥 თუ ბევრია → აირჩიოს საუკეთესო
-    if (matches.length > 1) {
-      const scored = matches
-        .map(p => ({ ...p, score: scoreProduct(p, lowerMsg) }))
-        .sort((a, b) => b.score - a.score);
-
-      const best = scored[0];
-      const second = scored[1];
-
-      let reply = `${best.name} (${best.code}) გამოგადგება — ${best.simple}.`;
-
-      if (second && second.score > 0) {
-        reply += ` თუ უფრო ძლიერი ან სხვა ვარიანტი გინდა, შეგიძლია ${second.name}-იც ნახო.`;
+      if (strength) {
+        matches = pendingMatches.filter(p =>
+          p.simple?.toLowerCase().includes(strength)
+        );
+      } else {
+        matches = pendingMatches;
       }
 
-      lastProduct = best;
-
-      return res.json({ reply });
+      pendingFilter = null;
+      pendingMatches = [];
     }
 
-    // 🔁 fallback
+    // 🔍 ჩვეულებრივი ძებნა
+    if (matches.length === 0) {
+      matches = products.filter(p => matchesProduct(p, lowerMsg));
+    }
+
+    // 🔥 თუ რამდენიმეა → დავუსვათ სწორი კითხვა
+    if (matches.length > 1 && !pendingFilter) {
+      const diff = findDifference(matches);
+
+      if (diff) {
+        pendingFilter = diff.type;
+        pendingMatches = matches;
+
+        return res.json({ reply: diff.question });
+      }
+    }
+
+    let found = matches[0] || null;
+
     if (!found && lastProduct) {
       found = lastProduct;
+    } else if (found) {
+      lastProduct = found;
     }
 
     let prompt = "";
@@ -114,9 +139,7 @@ app.post("/chat", async (req, res) => {
 
 არ გამოიყენო სლენგი.
 
-ძალიან მნიშვნელოვანია:
-- არ მოიგონო არაფერი
-- გამოიყენე მხოლოდ მოცემული ინფორმაცია
+არ მოიგონო ინფორმაცია.
 
 ინფორმაცია:
 პროდუქტი: ${found.name}
@@ -131,8 +154,6 @@ app.post("/chat", async (req, res) => {
 `;
     } else {
       prompt = `
-შენ ხარ ჰიდრავლიკის ტექნიკოსი.
-
 უპასუხე მოკლედ.
 
 თუ არ იცი → თქვი "არ ვიცი ზუსტად".
@@ -155,11 +176,6 @@ app.post("/chat", async (req, res) => {
 
     const data = await response.json();
 
-    if (!response.ok) {
-      console.error(data);
-      return res.status(500).json({ reply: "AI შეცდომა" });
-    }
-
     let reply = "პასუხი ვერ მოიძებნა";
 
     try {
@@ -171,15 +187,13 @@ app.post("/chat", async (req, res) => {
           }
         }
       }
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) {}
 
     res.json({ reply });
 
   } catch (error) {
     console.error(error);
-    res.status(500).json({ reply: "დაფიქსირდა შეცდომა" });
+    res.status(500).json({ reply: "შეცდომა" });
   }
 });
 
