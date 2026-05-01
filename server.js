@@ -39,6 +39,17 @@ function matchesProduct(p, message) {
   return words.some(word => text.includes(word));
 }
 
+// 🔥 intent detection (ახალი)
+function detectIntent(message) {
+  const m = message.toLowerCase();
+
+  if (m.includes("ხრახნ") || m.includes("ბოლტ")) return "threadlocker";
+  if (m.includes("საკის") || m.includes("ლილვ")) return "bearing";
+  if (m.includes("გაჟონ") || m.includes("ფიტინგ")) return "sealant";
+
+  return null;
+}
+
 // 🔍 განსხვავების პოვნა
 function findDifference(matches) {
   const strengths = new Set();
@@ -101,13 +112,25 @@ app.post("/chat", async (req, res) => {
       pendingMatches = [];
     }
 
-    // 🔍 ჩვეულებრივი ძებნა
+    // 🔍 ძებნა + intent ფილტრი
     if (matches.length === 0) {
+      const intent = detectIntent(lowerMsg);
+
       matches = products.filter(p => matchesProduct(p, lowerMsg));
+
+      if (intent) {
+        const filtered = matches.filter(p => p.type === intent);
+        if (filtered.length > 0) {
+          matches = filtered;
+        }
+      }
     }
 
-    // 🔥 თუ რამდენიმეა → დავუსვათ სწორი კითხვა
-    if (matches.length > 1 && !pendingFilter) {
+    // 🔥 სიმტკიცე უკვე უთხრა?
+    const strength = detectStrength(lowerMsg);
+
+    // 🔥 თუ რამდენიმეა → დავუსვათ კითხვა
+    if (matches.length > 1 && !pendingFilter && !strength) {
       const diff = findDifference(matches);
 
       if (diff) {
@@ -138,7 +161,6 @@ app.post("/chat", async (req, res) => {
 - ბუნებრივად
 
 არ გამოიყენო სლენგი.
-
 არ მოიგონო ინფორმაცია.
 
 ინფორმაცია:
